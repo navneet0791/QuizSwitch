@@ -7,7 +7,7 @@ const questions = [
   { q: "Which is a JavaScript framework?", options: ["React", "Laravel", "Django"], answer: "React" },
 ];
 
-export default function QuizA() {
+export default function QuizB() {
   const [current, setCurrent] = useState(0);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -22,10 +22,25 @@ export default function QuizA() {
     }
   };
 
+  const progress = ((current + 1) / questions.length) * 100;
+
   return (
     <div style={{ maxWidth: 500, margin: "2rem auto", textAlign: "center" }}>
       {!finished ? (
         <>
+          {/* Progress bar */}
+          <div style={{ height: "10px", background: "#ddd", borderRadius: "5px", marginBottom: "1rem" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${progress}%`,
+                background: "#4caf50",
+                borderRadius: "5px",
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+
           <h2>{questions[current].q}</h2>
           <div style={{ margin: "1rem 0" }}>
             {questions[current].options.map((option) => (
