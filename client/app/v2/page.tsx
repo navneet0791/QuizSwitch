@@ -1,5 +1,13 @@
 "use client";
-import { useState } from "react";
+import posthog from "posthog-js";
+import { useState, useRef, useEffect } from "react";
+
+interface QuestionMetrics {
+    startTime: number;
+    hoverCounts: Record<string, number>;
+    firstInteractionTime?: number;
+    focusTime?: number;
+}
 
 const questions = [
   { q: "What is 2 + 2?", options: ["3", "4", "5"], answer: "4" },
@@ -8,21 +16,123 @@ const questions = [
 ];
 
 export default function QuizB() {
-  const [current, setCurrent] = useState(0);
+  const [currentQuestion, setCurrent] = useState(0);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
+  const quizStartTime = useRef(Date.now());
+  const [metrics, setMetrics] = useState<QuestionMetrics[]>(
+    questions.map(() => ({
+      startTime: Date.now(),
+      hoverCounts: {},
+    }))
+  );
+  const [focusedOption, setFocusedOption] = useState<string | null>(null);
+
+  const handleOptionFocus = (option: string) => {
+    setFocusedOption(option);
+    setMetrics(prevMetrics => {
+      const newMetrics = [...prevMetrics];
+      const questionMetrics = { ...newMetrics[currentQuestion] };
+      
+      if (!questionMetrics.firstInteractionTime) {
+        questionMetrics.firstInteractionTime = Date.now();
+      }
+      
+      questionMetrics.focusTime = Date.now();
+      newMetrics[currentQuestion] = questionMetrics;
+      return newMetrics;
+    });
+  };
+
+  const handleOptionHover = (option: string) => {
+    setMetrics(prevMetrics => {
+      const newMetrics = [...prevMetrics];
+      const questionMetrics = { ...newMetrics[currentQuestion] };
+      
+      if (!questionMetrics.firstInteractionTime) {
+        questionMetrics.firstInteractionTime = Date.now();
+      }
+      
+      questionMetrics.hoverCounts = {
+        ...questionMetrics.hoverCounts,
+        [option]: (questionMetrics.hoverCounts[option] || 0) + 1
+      };
+      
+      newMetrics[currentQuestion] = questionMetrics;
+      return newMetrics;
+    });
+  };
 
   const handleAnswer = (option: string) => {
-    if (option === questions[current].answer) setScore(score + 1);
+    const isCorrect = option === questions[currentQuestion].answer;
+    const currentQuestionMetrics = metrics[currentQuestion];
+    const timeSpent = Date.now() - currentQuestionMetrics.startTime;
+    const hesitationTime = currentQuestionMetrics.firstInteractionTime 
+      ? currentQuestionMetrics.firstInteractionTime - currentQuestionMetrics.startTime 
+      : null;
+    const focusToClickTime = currentQuestionMetrics.focusTime 
+      ? Date.now() - currentQuestionMetrics.focusTime 
+      : null;
 
-    if (current + 1 < questions.length) {
-      setCurrent(current + 1);
+    if (isCorrect) setScore(score + 1);
+
+    // Enhanced answer tracking for variant B
+    posthog.capture("quiz_answer", {
+      variant: "B",
+      question_number: currentQuestion + 1,
+      question: questions[currentQuestion].q,
+      chosen_option: option,
+      correct: isCorrect,
+      time_spent_ms: timeSpent,
+      hesitation_time_ms: hesitationTime,
+      focus_to_click_time_ms: focusToClickTime,
+      hover_pattern: currentQuestionMetrics.hoverCounts,
+      total_hovers: Object.values(currentQuestionMetrics.hoverCounts).reduce((a, b) => a + b, 0)
+    });
+
+    if (currentQuestion + 1 < questions.length) {
+      setCurrent(prev => prev + 1);
+      setFocusedOption(null);
+      setMetrics(prevMetrics => {
+        const newMetrics = [...prevMetrics];
+        newMetrics[currentQuestion + 1] = {
+          ...newMetrics[currentQuestion + 1],
+          startTime: Date.now()
+        };
+        return newMetrics;
+      });
     } else {
       setFinished(true);
+      const totalTime = Date.now() - quizStartTime.current;
+      
+      // Enhanced completion tracking for variant B
+      posthog.capture("quiz_completed", {
+        variant: "B",
+        score: score + (isCorrect ? 1 : 0),
+        total: questions.length,
+        total_time_ms: totalTime,
+        avg_time_per_question: totalTime / questions.length,
+        question_times: metrics.map((m, i) => ({
+          question: i + 1,
+          time_spent: Date.now() - m.startTime,
+          hesitation: m.firstInteractionTime ? m.firstInteractionTime - m.startTime : null,
+          focus_patterns: m.focusTime ? Date.now() - m.focusTime : null,
+          hover_patterns: m.hoverCounts
+        }))
+      });
     }
   };
 
-  const progress = ((current + 1) / questions.length) * 100;
+  useEffect(() => {
+    // Track detailed session start for variant B
+    posthog.capture("quiz_started", {
+      variant: "B",
+      timestamp: quizStartTime.current,
+      total_questions: questions.length
+    });
+  }, []);
+
+  const progress = ((currentQuestion + 1) / questions.length) * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-tr from-purple-50 to-pink-50 py-8 px-4">
@@ -39,7 +149,7 @@ export default function QuizB() {
 
             {/* Question counter */}
             <div className="flex justify-between items-center text-sm text-gray-600">
-              <span>Question {current + 1} of {questions.length}</span>
+              <span>Question {currentQuestion + 1} of {questions.length}</span>
               <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full">
                 Score: {score}
               </span>
@@ -47,16 +157,22 @@ export default function QuizB() {
 
             {/* Question */}
             <h2 className="text-2xl font-bold text-gray-800 text-center py-4">
-              {questions[current].q}
+              {questions[currentQuestion].q}
             </h2>
 
             {/* Options */}
             <div className="grid gap-4">
-              {questions[current].options.map((option) => (
+              {questions[currentQuestion].options.map((option) => (
                 <button
                   key={option}
                   onClick={() => handleAnswer(option)}
-                  className="w-full py-4 px-6 text-left text-gray-700 bg-white border-2 border-gray-100 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                  onMouseEnter={() => handleOptionHover(option)}
+                  onFocus={() => handleOptionFocus(option)}
+                  className={`w-full py-4 px-6 text-left text-gray-700 bg-white border-2 
+                    ${focusedOption === option ? 'border-purple-500 bg-purple-50' : 'border-gray-100'} 
+                    rounded-xl hover:border-purple-500 hover:bg-purple-50 
+                    transition-all duration-200 focus:outline-none focus:ring-2 
+                    focus:ring-purple-500 focus:ring-offset-2`}
                 >
                   <span className="text-lg">{option}</span>
                 </button>
