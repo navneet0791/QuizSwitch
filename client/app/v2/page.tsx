@@ -166,6 +166,10 @@ export default function QuizB() {
 
                         {/* Question counter */}
                         <div className="flex justify-between items-center text-sm text-gray-600">
+                            <span>
+                                Question {currentQuestion + 1} of{" "}
+                                {questions.length}
+                            </span>
                             <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full">
                                 Score: {score}
                             </span>
