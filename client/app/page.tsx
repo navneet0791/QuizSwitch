@@ -46,37 +46,56 @@ export default function QuizA() {
     };
 
     useEffect(() => {
-        posthog.capture("$pageview"); // still track pageview
+        posthog.capture("$pageview");
     }, []);
 
     return (
-        <div
-            style={{ maxWidth: 500, margin: "2rem auto", textAlign: "center" }}
-        >
-            {!finished ? (
-                <>
-                    <h2>{questions[current].q}</h2>
-                    <div style={{ margin: "1rem 0" }}>
-                        {questions[current].options.map((option) => (
-                            <button
-                                key={option}
-                                onClick={() => handleAnswer(option)}
-                                style={{
-                                    display: "block",
-                                    margin: "0.5rem auto",
-                                    padding: "0.5rem 1rem",
-                                }}
-                            >
-                                {option}
-                            </button>
-                        ))}
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-8 px-4">
+            <div className="max-w-lg mx-auto bg-white rounded-xl shadow-lg p-8">
+                {!finished ? (
+                    <>
+                        {/* Progress indicator */}
+                        <div className="flex items-center justify-between mb-6">
+                            <span className="text-sm text-gray-600">
+                                Question {current + 1} of {questions.length}
+                            </span>
+                            <span className="text-sm font-medium text-indigo-600">
+                                Score: {score}
+                            </span>
+                        </div>
+
+                        {/* Question */}
+                        <h2 className="text-2xl font-bold text-gray-800 mb-8 text-center">
+                            {questions[current].q}
+                        </h2>
+
+                        {/* Options */}
+                        <div className="space-y-3">
+                            {questions[current].options.map((option) => (
+                                <button
+                                    key={option}
+                                    onClick={() => handleAnswer(option)}
+                                    className="w-full py-3 px-4 text-lg text-gray-700 bg-white border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                >
+                                    {option}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-center py-8">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-4">
+                            Quiz Complete!
+                        </h2>
+                        <div className="text-5xl font-bold text-indigo-600 mb-6">
+                            {score}/{questions.length}
+                        </div>
+                        <p className="text-gray-600">
+                            You got {score} out of {questions.length} questions correct
+                        </p>
                     </div>
-                </>
-            ) : (
-                <h2>
-                    Your score: {score}/{questions.length}
-                </h2>
-            )}
+                )}
+            </div>
         </div>
     );
 }
